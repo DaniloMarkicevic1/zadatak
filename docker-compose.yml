@@ -1,0 +1,98 @@
+version: '3'
+
+networks:
+  laravel:
+
+services:
+  client:
+    stdin_open: true
+    build:
+      context: ./frontend
+      dockerfile: "Dockerfile.dev"
+    ports:
+      - "3000:3000"
+    volumes:
+      - "/app/node_modules"
+      - "./frontend:/app"
+
+  site:
+    build:
+      context: ./backend
+      dockerfile: nginx.dockerfile
+    container_name: nginx
+    ports:
+      - "8080:80"
+    volumes:
+      - ./backend/src:/var/www/html:delegated
+    depends_on:
+      - php
+      - mysql
+    networks:
+      - laravel
+
+  mysql:
+    image: mysql:5.7.29
+    container_name: mysql
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: homestead
+      MYSQL_USER: homestead
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: secret
+      SERVICE_TAGS: dev
+      SERVICE_NAME: mysql
+    networks:
+      - laravel
+
+  php:
+    build:
+      context: ./backend
+      dockerfile: php.dockerfile
+    container_name: php
+    volumes:
+      - ./backend/src:/var/www/html:delegated
+    ports:
+      - "9000:9000"
+    networks:
+      - laravel
+
+  composer:
+    build:
+      context: ./backend
+      dockerfile: composer.dockerfile
+    container_name: composer
+    volumes:
+      - ./backend/src:/var/www/html
+    working_dir: /var/www/html
+    depends_on:
+      - php
+    user: laravel
+    networks:
+      - laravel
+    entrypoint: ['composer', '--ignore-platform-reqs']
+
+  npm:
+    image: node:13.7
+    container_name: npm
+    volumes:
+      - ./backend/src:/var/www/html
+    working_dir: /var/www/html
+    entrypoint: ['npm']
+
+  artisan:
+    build:
+      context: ./backend
+      dockerfile: php.dockerfile
+    container_name: artisan
+    volumes:
+      - ./backend/src:/var/www/html:delegated
+    depends_on:
+      - mysql
+    working_dir: /var/www/html
+    user: laravel
+    entrypoint: ['php', '/var/www/html/artisan']
+    networks:
+      - laravel
